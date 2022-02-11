@@ -5,7 +5,11 @@
 #include <algorithm>
 
 int num_bins;
-double bin_size;
+double BIN_SIZE;
+
+using std::vector;
+using std::set;
+using std::max;
 
 vector<vector<set<int>>> bins;
 
@@ -76,8 +80,8 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
-    bin_size = max(min_r, (int) sqrt(cutoff / density));
-    num_bins = size / bin_size;
+    BIN_SIZE = max(min_r, sqrt(cutoff / density));
+    num_bins = size / BIN_SIZE;
     bins = vector<vector<set<int>>>(num_bins, vector<set<int>>(num_bins, set<int>()));
     for (int i = 0; i < num_parts; i++) {
         int x_bin = std::min(num_bins - 1, (int) (parts[i].x / BIN_SIZE));
