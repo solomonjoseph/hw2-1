@@ -2,16 +2,98 @@
 #include <cmath>
 #include <vector>
 #include <set>
+#include <unordered_set>
 #include <algorithm>
+#include <cstdint>
 
-int num_bins;
-double BIN_SIZE;
+/*
+We will preduce B bins for N particles.
+The naive runtime is O(N^2). When split into bins,
+we end up with O(B * (N/B)^2) = O(N^2/B) work.
+Thus, we set B = aN to get a total of O(N/a) work.
+We want each bin to roughly fill up the cache,
+so the general goal is to maximize a by increasing it until
+it starts to make things work.
+
+Ideally, B = aN, but in reality we need a power of 2 bins.
+Can try rounding either up or down, but I think rounding down the bin size
+makes the most sense. Instead of sqrt(aN) bins on each side, we need
+the nearest power of two *above* sqrt(aN).
+
+Even more in reality, bin capacity fitting in cache is probably the sole most 
+important factor for performance, so that will dictate things. Luckily density
+is constant, meaning that size and N increase at the same rate, leading 
+bin size to directly correspond to a.
+*/
+
+
+//https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+inline int round_up_pow2(const unsigned int n) {
+    unsigned int v = n;
+    --v;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    return ++v;
+}
+
+/*
+Bin capacity is what determines actual performance due to cache limitations...
+So I think actually fixing bin capacity is best, calculate others from there.
+Number of bins is then N / bin_capacity -> bins per side is that rounded 
+*/
+template <unsigned int bin_capacity = 400, class particle = particle_t>
+struct bin_store {
+    const unsigned int N;
+    const unsigned int num_bins_per_side;
+    const double bin_width;
+    const double size;
+    const unsigned int num_bins;
+
+    //Actual memory backing for the bins.
+    //Will change this data type if we rearrange the struct or anything.
+    //Will need to be bin_capacity * num_bins big.
+    particle *bins;
+
+    static inline unsigned int compute_bins_per_side(const unsigned int N) {
+        unsigned int num_bins = N / bin_capacity;
+        unsigned int bps = ceil(sqrt(num_bins));
+        return round_up_pow2(bps);
+    }
+
+    //Access the ith vector in 
+    static inline unsigned int index(const unsigned int x, const unsigned int y, const unsigned int i) {
+        //TODO: implement Z curve mapping here
+        return 0;
+    }
+
+    bin_store(const unsigned int N, const double size) : N(N), size(size), num_bins_per_side(compute_bins_per_side(N)),
+              num_bins = num_bins_per_side * num_bins_per_side, bin_width(size / num_bins_per_side) {
+        bins = align(64) new particle[num_bins * bin_capacity];
+    }
+
+    ~bin_store() {
+        delete bins;
+    }
+
+    //TODO: implement operator[] for get/set
+};
+
+unsigned int num_bins;
+unsigned int bin_width;
 
 using std::vector;
 using std::set;
 using std::max;
 
 vector<vector<set<int>>> bins;
+
+template<int bin_exp>
+class BinStore {
+
+};
 
 // Apply the force from neighbor to particle
 void apply_force(particle_t& particle, particle_t& neighbor) {
@@ -80,12 +162,12 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
-    BIN_SIZE = max(min_r, sqrt(cutoff / density));
-    num_bins = size / BIN_SIZE;
+    bin_size = max(min_r, sqrt(cutoff / density));
+    num_bins = size / bin_size;
     bins = vector<vector<set<int>>>(num_bins, vector<set<int>>(num_bins, set<int>()));
     for (int i = 0; i < num_parts; i++) {
-        int x_bin = std::min(num_bins - 1, (int) (parts[i].x / BIN_SIZE));
-        int y_bin = std::min(num_bins - 1, (int) (parts[i].y / BIN_SIZE));
+        int x_bin = std::min(num_bins - 1, (int) (parts[i].x / bin_size));
+        int y_bin = std::min(num_bins - 1, (int) (parts[i].y / bin_size));
         bins[x_bin][y_bin].insert(i);
     }
 }
@@ -115,10 +197,10 @@ void simulate_one_step(particle_t* parts, int num_parts, double size) {
         double y_old = parts[i].y;
         move(parts[i], size);
         if (x_old != parts[i].x || y_old != parts[i].y) {
-            int x_bin_old = std::min(num_bins - 1, (int) (x_old / BIN_SIZE));
-            int y_bin_old = std::min(num_bins - 1, (int) (y_old / BIN_SIZE));
-            int x_bin_new = std::min(num_bins - 1, (int) (parts[i].x / BIN_SIZE));
-            int y_bin_new = std::min(num_bins - 1, (int) (parts[i].y / BIN_SIZE));
+            int x_bin_old = std::min(num_bins - 1, (int) (x_old / bin_size));
+            int y_bin_old = std::min(num_bins - 1, (int) (y_old / bin_size));
+            int x_bin_new = std::min(num_bins - 1, (int) (parts[i].x / bin_size));
+            int y_bin_new = std::min(num_bins - 1, (int) (parts[i].y / bin_size));
             bins[x_bin_old][y_bin_old].erase(i);
             bins[x_bin_new][y_bin_new].insert(i);
         }
