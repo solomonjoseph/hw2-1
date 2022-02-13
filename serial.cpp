@@ -39,18 +39,22 @@ inline int round_up_pow2(const unsigned int n) {
     return ++v;
 }
 
+using std::max;
+using std::min;
+
 /*
 Bin capacity is what determines actual performance due to cache limitations...
 So I think actually fixing bin capacity is best, calculate others from there.
 Number of bins is then N / bin_capacity -> bins per side is that rounded 
 */
-template <unsigned int bin_capacity = 400, class particle = particle_t>
+template <unsigned int bin_capacity = 400, class particle = particle_t, unsigned int levels = 3>
 struct bin_store {
     const unsigned int N;
     const unsigned int num_bins_per_side;
     const double bin_width;
     const double size;
     const unsigned int num_bins;
+    const int block_widths[levels] = { 1, 4, 32, 128 };
 
     //Actual memory backing for the bins.
     //Will change this data type if we rearrange the struct or anything.
@@ -63,14 +67,34 @@ struct bin_store {
         return round_up_pow2(bps);
     }
 
+    static inline int offset_from_coords(int r, int c, int H, int W, int block_width, bool row_wise) {
+        if (row_wise) {
+            return r * W + c * min(block_width, H-r);
+        } else {
+            return c * H + r * min(block_width, W-c);
+        }
+    }
+
     //Access the ith vector in 
-    static inline unsigned int index(const unsigned int x, const unsigned int y, const unsigned int i) {
+    inline unsigned int index(const unsigned int x, const unsigned int y, const unsigned int i) {
         //TODO: implement Z curve mapping here
-        return 0;
+        int idx = 0;
+        int H = num_bins_per_side;
+        int W = num_bins_per_side;
+
+        for (int level=levels; level>=1; level--) {
+            idx += offset_from_coords(x, y, H, W, block_widths[level], true);
+            x %= block_widths[level];
+            y %= block_widths[level];
+            H = std::min(block_widths[level], H-y);
+            W = std::min(block_widths[level], W-x);
+        }
+
+        return idx;
     }
 
     bin_store(const unsigned int N, const double size) : N(N), size(size), num_bins_per_side(compute_bins_per_side(N)),
-              num_bins = num_bins_per_side * num_bins_per_side, bin_width(size / num_bins_per_side) {
+              num_bins(num_bins_per_side * num_bins_per_side), bin_width(size / num_bins_per_side) {
         bins = align(64) new particle[num_bins * bin_capacity];
     }
 
@@ -86,7 +110,6 @@ unsigned int bin_width;
 
 using std::vector;
 using std::set;
-using std::max;
 
 vector<vector<set<int>>> bins;
 
