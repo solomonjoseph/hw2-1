@@ -80,7 +80,7 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
-    BIN_SIZE = max(min_r, sqrt(cutoff / density));
+    BIN_SIZE = std::min(size, cutoff);
     num_bins = size / BIN_SIZE;
     bins = vector<vector<set<int>>>(num_bins, vector<set<int>>(num_bins, set<int>()));
     for (int i = 0; i < num_parts; i++) {
