@@ -1,17 +1,22 @@
 #include "common.h"
 #include <cmath>
 #include <vector>
-#include <set>
+#include <unordered_set>
 #include <algorithm>
+#include <cstdio>
 
 int num_bins;
 double BIN_SIZE;
 
+#define GET_INDEX(X, Y, NUM_BINS) (X * NUM_BINS + Y)
+
 using std::vector;
-using std::set;
+using std::unordered_set;
 using std::max;
 
-vector<vector<set<int>>> bins;
+// vector<vector<set<int>>> bins;
+
+unordered_set<int>* bins;
 
 // Apply the force from neighbor to particle
 void apply_force(particle_t& particle, particle_t& neighbor) {
@@ -34,8 +39,8 @@ void apply_force(particle_t& particle, particle_t& neighbor) {
 }
 
 void apply_force_bin(particle_t* parts, int bin_x, int bin_y) {
-    set<int>::iterator itr_i, itr_j;
-    set<int> bin = bins[bin_x][bin_y];
+    unordered_set<int>::iterator itr_i, itr_j;
+    unordered_set<int> bin = bins[GET_INDEX(bin_x, bin_y, num_bins)];
     for (itr_i = bin.begin(); itr_i != bin.end(); itr_i++) {
         for (itr_j = bin.begin(); itr_j != bin.end(); itr_j++) {
             apply_force(parts[*itr_i], parts[*itr_j]);
@@ -44,9 +49,9 @@ void apply_force_bin(particle_t* parts, int bin_x, int bin_y) {
 }
 
 void apply_force_between_bins(particle_t* parts, int bin_one_x, int bin_one_y, int bin_two_x, int bin_two_y) {
-    set<int>::iterator itr_i, itr_j;
-    set<int> bin_one = bins[bin_one_x][bin_one_y];
-    set<int> bin_two = bins[bin_two_x][bin_two_y];
+    unordered_set<int>::iterator itr_i, itr_j;
+    unordered_set<int> bin_one = bins[GET_INDEX(bin_one_x, bin_one_y, num_bins)];
+    unordered_set<int> bin_two = bins[GET_INDEX(bin_two_x, bin_two_y, num_bins)];
     for (itr_i = bin_one.begin(); itr_i != bin_one.end(); itr_i++) {
         for (itr_j = bin_two.begin(); itr_j != bin_two.end(); itr_j++) {
             apply_force(parts[*itr_i], parts[*itr_j]);
@@ -80,13 +85,17 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
-    BIN_SIZE = std::min(size, cutoff);
+    BIN_SIZE = std::min(size, 5*cutoff);
     num_bins = size / BIN_SIZE;
-    bins = vector<vector<set<int>>>(num_bins, vector<set<int>>(num_bins, set<int>()));
+    bins = new unordered_set<int>[num_bins * num_bins];
+    // bins = vector<vector<set<int>>>(num_bins, vector<set<int>>(num_bins, set<int>()));
     for (int i = 0; i < num_parts; i++) {
         int x_bin = std::min(num_bins - 1, (int) (parts[i].x / BIN_SIZE));
         int y_bin = std::min(num_bins - 1, (int) (parts[i].y / BIN_SIZE));
-        bins[x_bin][y_bin].insert(i);
+        bins[GET_INDEX(x_bin, y_bin, num_bins)].insert(i);
+    }
+    for (int i = 0; i < num_parts; i++) {
+        printf("%d\n", bins[i].size());
     }
 }
 
@@ -119,8 +128,8 @@ void simulate_one_step(particle_t* parts, int num_parts, double size) {
             int y_bin_old = std::min(num_bins - 1, (int) (y_old / BIN_SIZE));
             int x_bin_new = std::min(num_bins - 1, (int) (parts[i].x / BIN_SIZE));
             int y_bin_new = std::min(num_bins - 1, (int) (parts[i].y / BIN_SIZE));
-            bins[x_bin_old][y_bin_old].erase(i);
-            bins[x_bin_new][y_bin_new].insert(i);
+            bins[GET_INDEX(x_bin_old, y_bin_old, num_bins)].erase(i);
+            bins[GET_INDEX(x_bin_new, y_bin_new, num_bins)].insert(i);
         }
     }
 }
