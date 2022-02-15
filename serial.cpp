@@ -1,4 +1,6 @@
 #include "common.h"
+#include "immintrin.h"
+#include "smmintrin.h"
 #include <cmath>
 #include <vector>
 #include <set>
@@ -47,6 +49,36 @@ inline void apply_force(particle_t& particle, particle_t& neighbor) {
 
     // Very simple short-range repulsive force
     double coef = (1 - cutoff / r) / r2 / mass;
+    // __m128d particle_as = _mm_load_pd(&particle.ax);
+    // __m128d particle_ds = _mm_set_pd(dy, dx);
+    // __m128d coefs = _mm_set1_pd(coef);
+    // _mm_store_pd(&particle.ax, _mm_fmadd_pd(particle_ds, coefs, particle_as));
+    particle.ax += coef * dx;
+    particle.ay += coef * dy;
+    // neighbor.ax -= coef * dx;
+    // neighbor.ay -= coef * dy;
+}
+
+// Apply the force from neighbor to particle
+inline void apply_force_symmetric(particle_t& particle, particle_t& neighbor) {
+    // Calculate Distance
+    double dx = neighbor.x - particle.x;
+    double dy = neighbor.y - particle.y;
+    double r2 = dx * dx + dy * dy;
+
+    // Check if the two particles should interact - too far or are same particle, then no
+    if (r2 > cutoff * cutoff || (dx == 0 && dy == 0))
+        return;
+
+    r2 = fmax(r2, min_r * min_r);
+    double r = sqrt(r2);
+
+    // Very simple short-range repulsive force
+    double coef = (1 - cutoff / r) / r2 / mass;
+    // __m128d particle_as = _mm_load_pd(&particle.ax);
+    // __m128d particle_ds = _mm_set_pd(dy, dx);
+    // __m128d coefs = _mm_set1_pd(coef);
+    // _mm_store_pd(&particle.ax, _mm_fmadd_pd(particle_ds, coefs, particle_as));
     particle.ax += coef * dx;
     particle.ay += coef * dy;
     neighbor.ax -= coef * dx;
@@ -320,6 +352,7 @@ struct bin_store {
                         }
                     }
                 }
+                //add the other four cases for parallel
 
                 //Now have collected all the particles we might be updating, so do the update
                 for (int p = 0; p < my_bin.count; ++p) {
@@ -328,12 +361,11 @@ struct bin_store {
                     for (int q = 0; q < s; ++q) {
                         particle_t &right = buf[q]->part;
                         apply_force(left, right);
-                        // apply_force(right, left);
+                        apply_force(right, left); //going to have to remove this for parallel
                     }
                     for (int q = p + 1; q < my_bin.count; ++q) {
                         particle_t &right = my_bin[q].part;
-                        apply_force(left, right);
-                        // apply_force(right, left);
+                        apply_force_symmetric(left, right);
                     }
                 }
             }
