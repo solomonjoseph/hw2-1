@@ -38,8 +38,8 @@ inline void apply_force(particle_t& particle, particle_t& neighbor) {
     double dy = neighbor.y - particle.y;
     double r2 = dx * dx + dy * dy;
 
-    // Check if the two particles should interact
-    if (r2 > cutoff * cutoff)
+    // Check if the two particles should interact - too far or are same particle, then no
+    if (r2 > cutoff * cutoff || (dx == 0 && dy == 0))
         return;
 
     r2 = fmax(r2, min_r * min_r);
@@ -263,6 +263,15 @@ struct bin_store {
     }
 
     void simulate_one_step() {
+        for (int i = 0; i < num_bins_per_side; ++i) {
+            for (int j = 0; j < num_bins_per_side; ++j) {
+                bin &current = get_bin(i, j);
+                int s = current.count;
+                for (int k = 0; k < s; ++k) {
+                    current[k].part.ax = current[k].part.ay = 0.0;
+                }
+            }
+        }
         std::cout << "\rSIMULATING " << steps++ << " WITH MAX " << max_occupancy;
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
@@ -279,7 +288,7 @@ struct bin_store {
                     bin &bottom_left = get_bin(i - 1, j + 1);
                     for (int k = 0; k < bottom_left.count; ++k) {
                         improved_particle_t *other = &bottom_left[k];
-                        if (d2(left_edge, bottom_edge, other->part.x, other->part.y) <= cutoff_squared) {
+                        if (true || d2(left_edge, bottom_edge, other->part.x, other->part.y) <= cutoff_squared) {
                             buf.push_back(other);
                         }
                     }
@@ -288,7 +297,7 @@ struct bin_store {
                     bin &bottom = get_bin(i, j + 1);
                     for (int k = 0; k < bottom.count; ++k) {
                         improved_particle_t *other = &bottom[k];
-                        if ((other->part.y - bottom_edge) * (other->part.y - bottom_edge) <= cutoff_squared) {
+                        if (other->part.y - bottom_edge <= cutoff) {
                             buf.push_back(other);
                         }
                     }
@@ -306,7 +315,7 @@ struct bin_store {
                     bin &right = get_bin(i + 1, j);
                     for (int k = 0; k < right.count; ++k) {
                         improved_particle_t *other = &right[k];
-                        if ((other->part.x - right_edge) * (other->part.x - right_edge) <= cutoff_squared) {
+                        if (other->part.x - right_edge <= cutoff) {
                             buf.push_back(other);
                         }
                     }
@@ -319,10 +328,12 @@ struct bin_store {
                     for (int q = 0; q < s; ++q) {
                         particle_t &right = buf[q]->part;
                         apply_force(left, right);
+                        // apply_force(right, left);
                     }
-                    for (int q = 0; q < my_bin.count; ++q) {
+                    for (int q = p + 1; q < my_bin.count; ++q) {
                         particle_t &right = my_bin[q].part;
                         apply_force(left, right);
+                        // apply_force(right, left);
                     }
                 }
             }
