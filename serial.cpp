@@ -272,7 +272,7 @@ struct bin_store {
                 }
             }
         }
-        std::cout << "\rSIMULATING " << steps++ << " WITH MAX " << max_occupancy;
+        // std::cout << "\rSIMULATING " << steps++ << " WITH MAX " << max_occupancy;
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
         for (int i = 0; i < num_bins_per_side; ++i) {
@@ -288,7 +288,7 @@ struct bin_store {
                     bin &bottom_left = get_bin(i - 1, j + 1);
                     for (int k = 0; k < bottom_left.count; ++k) {
                         improved_particle_t *other = &bottom_left[k];
-                        if (true || d2(left_edge, bottom_edge, other->part.x, other->part.y) <= cutoff_squared) {
+                        if (d2(left_edge, bottom_edge, other->part.x, other->part.y) <= cutoff_squared) {
                             buf.push_back(other);
                         }
                     }
