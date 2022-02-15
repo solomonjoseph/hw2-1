@@ -54,6 +54,7 @@ inline void apply_force(particle_t& particle, particle_t& neighbor) {
     // __m128d particle_ds = _mm_set_pd(dy, dx);
     // __m128d coefs = _mm_set1_pd(coef);
     // _mm_store_pd(&particle.ax, _mm_fmadd_pd(particle_ds, coefs, particle_as));
+
     particle.ax += coef * dx;
     particle.ay += coef * dy;
     // neighbor.ax -= coef * dx;
@@ -123,7 +124,7 @@ inline int round_up_pow2(const unsigned int n) {
 
 struct alignas(64) improved_particle_t {
     particle_t part;
-    double last_t;
+    double last_updated_t;
     unsigned int id;
     bool valid;
 };
@@ -208,6 +209,7 @@ struct bin_store {
     //Will change this data type if we rearrange the struct or anything.
     //Will need to be bin_capacity * num_bins big.
     std::vector<bin> bins;
+    omp_lock_t bin_lock2;
     std::vector<omp_lock_t> bin_locks;
     improved_particle_t *particle_mem;
     particle_t *base_array;
@@ -271,7 +273,7 @@ struct bin_store {
         particle_mem = new improved_particle_t[bin_capacity * num_bins];
         //std::cout << num_bins << std::endl;
         bins = std::vector<bin>(num_bins, bin());
-        #pragma omp parallel for collapse(2)
+        // #pragma omp parallel for collapse(2)
         for (unsigned int i = 0; i < num_bins_per_side; i++) {
             for (unsigned int j = 0; j < num_bins_per_side; j++) {
                 unsigned int ind = calc_Z_order( i, j);
@@ -282,14 +284,15 @@ struct bin_store {
                 //std::cout << "Assigning " << i << ", " << j << " to " << ind << std::endl;
             }
         }
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (unsigned int i = 0; i < N; i++) {
             parts[i].ax = parts[i].ay = 0.0;
             bin &curr_bin = get_bin_from_coord(parts[i].x, parts[i].y);
             curr_bin.push_back((improved_particle_t) {parts[i], 0.0, i, true});
         }
         bin_locks = std::vector<omp_lock_t>(num_bins_per_side * num_bins_per_side);
-        #pragma omp parallel for
+        // #pragma omp parallel for
+        omp_init_lock(&bin_lock2);
         for (int i = 0; i < bin_locks.size(); i++) {
             omp_init_lock(&bin_locks[i]);
         }
@@ -306,11 +309,9 @@ struct bin_store {
     }
 
     void simulate_one_step() {
-        #pragma omp parallel
-        {
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
-        #pragma omp for collapse(2)
+        #pragma omp for collapse(2) private(left_edge, right_edge, top_edge, bottom_edge, buf)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
                 buf.clear();
@@ -408,10 +409,9 @@ struct bin_store {
                 }
             }
         }
-
         double x_offset, y_offset;
         // Move Particles
-        #pragma omp for collapse(2)
+        #pragma omp for collapse(2) private(x_offset, y_offset)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
                 bin &current = get_bin(i, j);
@@ -422,21 +422,21 @@ struct bin_store {
             }
         }
 
-        int new_i, new_j, current_index, new_index;
-        double x_t, y_t;
         #pragma omp for collapse(2)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
                 // current_index = calc_Z_order(i, j);
+                int new_i, new_j, current_index, new_index;
+                double x_t, y_t, left_edge, right_edge, top_edge, bottom_edge;
                 bin &current = get_bin(i, j);
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
                 top_edge = j * bin_width;
-                bottom_edge = (j + 1) * bin_width; 
-                printf("HERE%d\n", omp_get_thread_num());
+                bottom_edge = (j + 1) * bin_width;
+                #pragma omp critical
+                {
                 for (int k = 0; k < current.count; ++k) {
                     particle_t &part = current[k].part;
-                    // new_index = calc_Z_order(part.x / bin_width, part.y / bin_width);
                     x_t = part.x;
                     y_t = part.y;
                     new_i = i;
@@ -458,31 +458,19 @@ struct bin_store {
                         y_t -= bin_width;
                         ++new_j;
                     }
-
-                    // if (x_offset < 0) {
-                    //     new_i -= (int) (-x_offset / bin_width);
-                    // } else if (x_offset > bin_width) {
-                    //     new_i += (int) (x_offset / bin_width);
-                    // }
-                    // if (y_offset < 0) {
-                    //     new_j -= (int) (-y_offset / bin_width);
-                    // } else if (y_offset > bin_width) {
-                    //     new_j += (int) (y_offset / bin_width);
-                    // }
-                    if (new_i != i || new_j != j) {
-                    // if (new_index != current_index) {
+                    if (new_i != i || new_j != j) { 
                         improved_particle_t tmp = current[k];
                         omp_set_lock(&bin_locks[calc_Z_order(i, j)]);
                         current.remove(k);
                         omp_unset_lock(&bin_locks[calc_Z_order(i, j)]);
-                        bin &other = get_bin(new_i, new_j); //bin &other = bins[new_index];
+                        bin &other = get_bin(new_i, new_j);
                         omp_set_lock(&bin_locks[calc_Z_order(new_i, new_j)]);
                         other.push_back(tmp);
-                        omp_unset_lock(&bin_locks[calc_Z_order(new_i, new_j)]);
+                        omp_unset_lock(&bin_locks[calc_Z_order(new_i, new_j)]); 
                     }
                 }
+                }
             }
-        }
         }
         write_back();
     }
