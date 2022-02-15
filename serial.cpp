@@ -104,6 +104,8 @@ inline void move(particle_t& p, double size) {
         p.y = p.y < 0 ? -p.y : 2 * size - p.y;
         p.vy = -p.vy;
     }
+
+    p.ax = p.ay = 0.0;
 }
 
 //https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -279,6 +281,7 @@ struct bin_store {
         }
         
         for (unsigned int i = 0; i < N; i++) {
+            parts[i].ax = parts[i].ay = 0.0;
             bin &curr_bin = get_bin_from_coord(parts[i].x, parts[i].y);
             curr_bin.push_back((improved_particle_t) {parts[i], 0.0, i, true});
         }
@@ -295,15 +298,15 @@ struct bin_store {
     }
 
     void simulate_one_step() {
-        for (int i = 0; i < num_bins_per_side; ++i) {
-            for (int j = 0; j < num_bins_per_side; ++j) {
-                bin &current = get_bin(i, j);
-                int s = current.count;
-                for (int k = 0; k < s; ++k) {
-                    current[k].part.ax = current[k].part.ay = 0.0;
-                }
-            }
-        }
+        // for (int i = 0; i < num_bins_per_side; ++i) {
+        //     for (int j = 0; j < num_bins_per_side; ++j) {
+        //         bin &current = get_bin(i, j);
+        //         int s = current.count;
+        //         for (int k = 0; k < s; ++k) {
+        //             current[k].part.ax = current[k].part.ay = 0.0;
+        //         }
+        //     }
+        // }
         // std::cout << "\rSIMULATING " << steps++ << " WITH MAX " << max_occupancy;
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
@@ -417,9 +420,11 @@ struct bin_store {
             }
         }
 
-        int new_i, new_j;
+        int new_i, new_j, current_index, new_index;
+        double x_t, y_t;
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
+                // current_index = calc_Z_order(i, j);
                 bin &current = get_bin(i, j);
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
@@ -427,24 +432,44 @@ struct bin_store {
                 bottom_edge = (j + 1) * bin_width; 
                 for (int k = 0; k < current.count; ++k) {
                     particle_t &part = current[k].part;
-                    x_offset = part.x - left_edge;
-                    y_offset = part.y - top_edge;
+                    // new_index = calc_Z_order(part.x / bin_width, part.y / bin_width);
+                    x_t = part.x;
+                    y_t = part.y;
                     new_i = i;
                     new_j = j;
-                    if (x_offset < 0) {
+
+                    while(x_t < left_edge) {
+                        x_t += bin_width;
                         --new_i;
-                    } else if (x_offset > bin_width) {
+                    }
+                    while(x_t > right_edge) {
+                        x_t -= bin_width;
                         ++new_i;
                     }
-                    if (y_offset < 0) {
+                    while(y_t < top_edge) {
+                        y_t += bin_width;
                         --new_j;
-                    } else if (y_offset > bin_width) {
+                    }
+                    while(y_t > bottom_edge) {
+                        y_t -= bin_width;
                         ++new_j;
                     }
+
+                    // if (x_offset < 0) {
+                    //     new_i -= (int) (-x_offset / bin_width);
+                    // } else if (x_offset > bin_width) {
+                    //     new_i += (int) (x_offset / bin_width);
+                    // }
+                    // if (y_offset < 0) {
+                    //     new_j -= (int) (-y_offset / bin_width);
+                    // } else if (y_offset > bin_width) {
+                    //     new_j += (int) (y_offset / bin_width);
+                    // }
                     if (new_i != i || new_j != j) {
+                    // if (new_index != current_index) {
                         improved_particle_t tmp = current[k];
                         current.remove(k);
-                        bin &other = get_bin(new_i, new_j);
+                        bin &other = get_bin(new_i, new_j); //bin &other = bins[new_index];
                         other.push_back(tmp);
                     }
                 }
