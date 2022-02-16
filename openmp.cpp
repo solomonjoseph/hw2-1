@@ -124,7 +124,7 @@ struct bin {
     omp_lock_t remove_lock;
     std::vector<int> remove_indices = std::vector<int>();
     omp_lock_t add_lock;
-    std::vector<improved_particle_t> add_indices = std::vector<improved_particle_t>();
+    std::vector<improved_particle_t> add_queue = std::vector<improved_particle_t>();
 
     unsigned int capacity = 0, count = 0;
     bool own_mem = false;
@@ -150,7 +150,7 @@ struct bin {
 
     void schedule_push_back(improved_particle_t new_part) {
         omp_set_lock(&add_lock);
-        add_indices.push_back(new_part);
+        add_queue.push_back(new_part);
         omp_unset_lock(&add_lock);
     }
     
@@ -171,16 +171,19 @@ struct bin {
 
     void execute_swap() {
         int i = 0;
-        for (; i < add_indices.size() && i < remove_indices.size(); i++) {
-            particles[remove_indices[i]] = add_indices[i];
+        int s = add_queue.size();
+        int t = remove_indices.size();
+        int lim = min(s, t);
+        for (; i < lim; i++) {
+            particles[remove_indices[i]] = add_queue[i];
         }
-        for (int j=i; j<add_indices.size(); j++) {
-            particles[count++] = add_indices[j];
+        for (int j = i; j < s; j++) {
+            push_back(add_queue[j]);
         }
-        for (int j=i; j<remove_indices.size(); j++) {
+        for (int j = i; j < t; j++) {
             remove(remove_indices[j]);
         }
-        add_indices.clear();
+        add_queue.clear();
         remove_indices.clear();
     }
 
@@ -228,7 +231,7 @@ struct bin_store {
     //Actual memory backing for the bins.
     //Will change this data type if we rearrange the struct or anything.
     //Will need to be bin_capacity * num_bins big.
-    std::vector<bin> bins;
+    bin *bins;
     // omp_lock_t bin_lock2;
     // std::vector<omp_lock_t> bin_locks;
     improved_particle_t *particle_mem;
@@ -293,7 +296,7 @@ struct bin_store {
         base_array = parts;
         particle_mem = new improved_particle_t[bin_capacity * num_bins];
         //std::cout << num_bins << std::endl;
-        bins = std::vector<bin>(num_bins, bin());
+        bins = new bin[num_bins];
         for (unsigned int i = 0; i < num_bins_per_side; i++) {
             for (unsigned int j = 0; j < num_bins_per_side; j++) {
                 unsigned int ind = calc_Z_order( i, j);
@@ -505,6 +508,7 @@ struct bin_store {
 
     ~bin_store() {
         delete particle_mem;
+        delete bins;
         // for (int i = 0; i < bin_locks.size(); i++) {
         //     omp_destroy_lock(&bin_locks[i]);
         // }

@@ -298,16 +298,6 @@ struct bin_store {
     }
 
     void simulate_one_step() {
-        // for (int i = 0; i < num_bins_per_side; ++i) {
-        //     for (int j = 0; j < num_bins_per_side; ++j) {
-        //         bin &current = get_bin(i, j);
-        //         int s = current.count;
-        //         for (int k = 0; k < s; ++k) {
-        //             current[k].part.ax = current[k].part.ay = 0.0;
-        //         }
-        //     }
-        // }
-        // std::cout << "\rSIMULATING " << steps++ << " WITH MAX " << max_occupancy;
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
         for (int i = 0; i < num_bins_per_side; ++i) {
