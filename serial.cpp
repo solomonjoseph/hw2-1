@@ -49,14 +49,8 @@ inline void apply_force(particle_t& particle, particle_t& neighbor) {
 
     // Very simple short-range repulsive force
     double coef = (1 - cutoff / r) / r2 / mass;
-    // __m128d particle_as = _mm_load_pd(&particle.ax);
-    // __m128d particle_ds = _mm_set_pd(dy, dx);
-    // __m128d coefs = _mm_set1_pd(coef);
-    // _mm_store_pd(&particle.ax, _mm_fmadd_pd(particle_ds, coefs, particle_as));
     particle.ax += coef * dx;
     particle.ay += coef * dy;
-    // neighbor.ax -= coef * dx;
-    // neighbor.ay -= coef * dy;
 }
 
 // Apply the force from neighbor to particle
@@ -75,10 +69,6 @@ inline void apply_force_symmetric(particle_t& particle, particle_t& neighbor) {
 
     // Very simple short-range repulsive force
     double coef = (1 - cutoff / r) / r2 / mass;
-    // __m128d particle_as = _mm_load_pd(&particle.ax);
-    // __m128d particle_ds = _mm_set_pd(dy, dx);
-    // __m128d coefs = _mm_set1_pd(coef);
-    // _mm_store_pd(&particle.ax, _mm_fmadd_pd(particle_ds, coefs, particle_as));
     particle.ax += coef * dx;
     particle.ay += coef * dy;
     neighbor.ax -= coef * dx;
@@ -201,7 +191,6 @@ struct bin_store {
     unsigned int num_bins;
     unsigned int bin_capacity;
     unsigned int steps;
-    unsigned int max_occupancy = 0;
 
     //Actual memory backing for the bins.
     //Will change this data type if we rearrange the struct or anything.
@@ -252,10 +241,8 @@ struct bin_store {
     }
 
     void write_back() {
-        max_occupancy = 0;
         for (int i = 0; i < num_bins; ++i) {
             bins[i].flush(base_array);
-            max_occupancy = max(bins[i].count, max_occupancy);
         }
     }
 
@@ -293,10 +280,6 @@ struct bin_store {
         return dx * dx + dy * dy;
     }
 
-    inline bool outside_bin(improved_particle_t &part, unsigned int i, unsigned int j) {
-        return part.part.x < i * size || part.part.x > (i + 1) * size || part.part.y < j * size || part.part.y > (j + 1) * size;
-    }
-
     void simulate_one_step() {
         double left_edge, right_edge, top_edge, bottom_edge;
         std::vector<improved_particle_t *> buf;
@@ -308,7 +291,6 @@ struct bin_store {
                 right_edge = (i + 1) * bin_width;
                 top_edge = j * bin_width;
                 bottom_edge = (j + 1) * bin_width; 
-                //std::cout << "In box from " << left_edge << " to " << right_edge << std::endl;
                 if (i - 1 >= 0 && j + 1 < num_bins_per_side) {//bottom left
                     bin &bottom_left = get_bin(i - 1, j + 1);
                     for (int k = 0; k < bottom_left.count; ++k) {
@@ -378,7 +360,6 @@ struct bin_store {
         double x_t, y_t;
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
-                // current_index = calc_Z_order(i, j);
                 bin &current = get_bin(i, j);
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
@@ -386,7 +367,6 @@ struct bin_store {
                 bottom_edge = (j + 1) * bin_width; 
                 for (int k = 0; k < current.count; ++k) {
                     particle_t &part = current[k].part;
-                    // new_index = calc_Z_order(part.x / bin_width, part.y / bin_width);
                     x_t = part.x;
                     y_t = part.y;
                     new_i = i;
@@ -412,7 +392,7 @@ struct bin_store {
                     if (new_i != i || new_j != j) {
                         improved_particle_t tmp = current[k];
                         current.remove(k);
-                        bin &other = get_bin(new_i, new_j); //bin &other = bins[new_index];
+                        bin &other = get_bin(new_i, new_j);
                         other.push_back(tmp);
                     }
                 }
@@ -439,15 +419,4 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 
 void simulate_one_step(particle_t* parts, int num_parts, double size) {
     bins->simulate_one_step();
-    // // Compute Forces
-    // for (int i = 0; i < num_parts; i++) {
-    //     for (int j = 0; j < num_parts; j++) {
-    //         apply_force(parts[i], parts[j]);
-    //     }
-    // }
-
-    // // Move Particles
-    // for (int i = 0; i < num_parts; ++i) {
-    //     move(parts[i], size);
-    // }
 }
