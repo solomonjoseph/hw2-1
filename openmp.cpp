@@ -164,9 +164,9 @@ struct bin {
     }
 
     void schedule_remove(unsigned int index) {
-        omp_set_lock(&remove_lock);
+        // omp_set_lock(&remove_lock);
         remove_indices.push_back(index);
-        omp_unset_lock(&remove_lock);
+        // omp_unset_lock(&remove_lock);
     }
 
     void execute_swap() {
