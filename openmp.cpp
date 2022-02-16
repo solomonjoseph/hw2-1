@@ -121,7 +121,6 @@ struct alignas(64) improved_particle_t {
 
 struct bin {
     improved_particle_t *particles = nullptr;
-    omp_lock_t remove_lock;
     std::vector<int> remove_indices = std::vector<int>();
     omp_lock_t add_lock;
     std::vector<improved_particle_t> add_queue = std::vector<improved_particle_t>();
@@ -164,9 +163,7 @@ struct bin {
     }
 
     void schedule_remove(unsigned int index) {
-        omp_set_lock(&remove_lock);
         remove_indices.push_back(index);
-        omp_unset_lock(&remove_lock);
     }
 
     void execute_swap() {
@@ -202,7 +199,6 @@ struct bin {
         if (own_mem) {
             delete particles;
         }
-        omp_destroy_lock(&remove_lock);
         omp_destroy_lock(&add_lock);
     }
 };
@@ -232,8 +228,6 @@ struct bin_store {
     //Will change this data type if we rearrange the struct or anything.
     //Will need to be bin_capacity * num_bins big.
     bin *bins;
-    // omp_lock_t bin_lock2;
-    // std::vector<omp_lock_t> bin_locks;
     improved_particle_t *particle_mem;
     particle_t *base_array;
 
@@ -280,7 +274,6 @@ struct bin_store {
 
     void write_back() {
         // max_occupancy = 0;
-        // #pragma omp for
         for (int i = 0; i < num_bins; ++i) {
             bins[i].flush(base_array);
             // max_occupancy = max(bins[i].count, max_occupancy);
@@ -299,13 +292,12 @@ struct bin_store {
         bins = new bin[num_bins];
         for (unsigned int i = 0; i < num_bins_per_side; i++) {
             for (unsigned int j = 0; j < num_bins_per_side; j++) {
-                unsigned int ind = calc_Z_order( i, j);
+                unsigned int ind = calc_Z_order(i, j);
                 bins[ind].particles = &particle_mem[bin_capacity * ind];
                 bins[ind].capacity = bin_capacity;
                 bins[ind].count = 0;
                 bins[ind].own_mem = false;
-                omp_init_lock(&bins[ind].remove_lock);
-                omp_init_lock(&bins[ind].add_lock);
+                omp_init_lock(&(bins[ind].add_lock));
                 //std::cout << "Assigning " << i << ", " << j << " to " << ind << std::endl;
             }
         }
@@ -314,11 +306,6 @@ struct bin_store {
             bin &curr_bin = get_bin_from_coord(parts[i].x, parts[i].y);
             curr_bin.push_back((improved_particle_t) {parts[i], 0.0, i, true});
         }
-        // bin_locks = std::vector<omp_lock_t>(num_bins_per_side * num_bins_per_side);
-        // omp_init_lock(&bin_lock2);
-        // for (int i = 0; i < bin_locks.size(); i++) {
-        //     omp_init_lock(&bin_locks[i]);
-        // }
     }
 
     static inline double d2(double x1, double y1, double x2, double y2) {
@@ -327,23 +314,17 @@ struct bin_store {
         return dx * dx + dy * dy;
     }
 
-    inline bool outside_bin(improved_particle_t &part, unsigned int i, unsigned int j) {
-        return part.part.x < i * size || part.part.x > (i + 1) * size || part.part.y < j * size || part.part.y > (j + 1) * size;
-    }
-
     void simulate_one_step() {
-        double left_edge, right_edge, top_edge, bottom_edge;
-        std::vector<improved_particle_t *> buf;
-        #pragma omp for collapse(2) private(left_edge, right_edge, top_edge, bottom_edge, buf)
+        #pragma omp for collapse(2)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
-                buf.clear();
+                std::vector<improved_particle_t *> buf = std::vector<improved_particle_t *>();
                 bin &my_bin = get_bin(i, j);
+                double left_edge, right_edge, top_edge, bottom_edge;
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
                 top_edge = j * bin_width;
                 bottom_edge = (j + 1) * bin_width; 
-                //std::cout << "In box from " << left_edge << " to " << right_edge << std::endl;
                 if (i - 1 >= 0 && j + 1 < num_bins_per_side) {//bottom left
                     bin &bottom_left = get_bin(i - 1, j + 1);
                     for (int k = 0; k < bottom_left.count; ++k) {
@@ -432,9 +413,8 @@ struct bin_store {
                 }
             }
         }
-        double x_offset, y_offset;
         // Move Particles
-        #pragma omp for collapse(2) private(x_offset, y_offset)
+        #pragma omp for collapse(2)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
                 bin &current = get_bin(i, j);
@@ -488,30 +468,23 @@ struct bin_store {
             }
         }
 
-        #pragma omp single
-        {
+        #pragma omp for collapse(2)
         for (int i = 0; i < num_bins_per_side; i++) {
             for (int j = 0; j < num_bins_per_side; j++) {
                 bin &current = get_bin(i, j);
-                // omp_set_lock(&bin_locks[calc_Z_order(i, j)]);
                 current.execute_swap();
-                // omp_unset_lock(&bin_locks[calc_Z_order(i, j)]);
             }
         }
-        }
 
-        #pragma omp single
-        {
-        write_back();
+        #pragma omp for 
+        for (int i = 0; i < num_bins; ++i) {
+            bins[i].flush(base_array);
         }
     }
 
     ~bin_store() {
         delete particle_mem;
         delete bins;
-        // for (int i = 0; i < bin_locks.size(); i++) {
-        //     omp_destroy_lock(&bin_locks[i]);
-        // }
     }
 };
 
@@ -522,10 +495,7 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
-    #pragma omp single
-    {
-        bins = new bin_store(num_parts, size, 32, parts);
-    }
+    bins = new bin_store(num_parts, size, 32, parts);
 }
 
 
