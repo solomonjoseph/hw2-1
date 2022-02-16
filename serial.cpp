@@ -345,42 +345,6 @@ struct bin_store {
                         }
                     }
                 }
-                if (i - 1 >= 0 && j - 1 >= 0) {//top left
-                    bin &top_left = get_bin(i - 1, j - 1);
-                    for (int k = 0; k < top_left.count; ++k) {
-                        improved_particle_t *other = &top_left[k];
-                        if (d2(left_edge, top_edge, other->part.x, other->part.y) <= cutoff_squared) {
-                            buf.push_back(other);
-                        }
-                    }
-                }
-                if (j - 1 >= 0) {//top
-                    bin &top = get_bin(i, j - 1);
-                    for (int k = 0; k < top.count; ++k) {
-                        improved_particle_t *other = &top[k];
-                        if (top_edge - other->part.y <= cutoff) {
-                            buf.push_back(other);
-                        }
-                    }
-                }
-                if (i + 1 < num_bins_per_side && j - 1 >= 0) {//top right
-                    bin &top_right = get_bin(i + 1, j - 1);
-                    for (int k = 0; k < top_right.count; ++k) {
-                        improved_particle_t *other = &top_right[k];
-                        if (d2(right_edge, top_edge, other->part.x, other->part.y) <= cutoff_squared) {
-                            buf.push_back(other);
-                        }
-                    }
-                }
-                if (i - 1 >= 0) {//left
-                    bin &left = get_bin(i - 1, j);
-                    for (int k = 0; k < left.count; ++k) {
-                        improved_particle_t *other = &left[k];
-                        if (left_edge - other->part.x <= cutoff) {
-                            buf.push_back(other);
-                        }
-                    }
-                }
 
                 //Now have collected all the particles we might be updating, so do the update
                 for (int p = 0; p < my_bin.count; ++p) {
@@ -388,7 +352,7 @@ struct bin_store {
                     particle_t &left = my_bin[p].part;
                     for (int q = 0; q < s; ++q) {
                         particle_t &right = buf[q]->part;
-                        apply_force(left, right);
+                        apply_force_symmetric(left, right);
                     }
                     for (int q = p + 1; q < my_bin.count; ++q) {
                         particle_t &right = my_bin[q].part;
@@ -444,19 +408,8 @@ struct bin_store {
                         y_t -= bin_width;
                         ++new_j;
                     }
-
-                    // if (x_offset < 0) {
-                    //     new_i -= (int) (-x_offset / bin_width);
-                    // } else if (x_offset > bin_width) {
-                    //     new_i += (int) (x_offset / bin_width);
-                    // }
-                    // if (y_offset < 0) {
-                    //     new_j -= (int) (-y_offset / bin_width);
-                    // } else if (y_offset > bin_width) {
-                    //     new_j += (int) (y_offset / bin_width);
-                    // }
+                    
                     if (new_i != i || new_j != j) {
-                    // if (new_index != current_index) {
                         improved_particle_t tmp = current[k];
                         current.remove(k);
                         bin &other = get_bin(new_i, new_j); //bin &other = bins[new_index];
