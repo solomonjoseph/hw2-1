@@ -120,7 +120,7 @@ inline int round_up_pow2(const unsigned int n) {
     return ++v;
 }
 
-struct alignas(64) improved_particle_t {
+struct /*alignas(64)*/ improved_particle_t {
     particle_t part;
     double last_t;
     unsigned int id;
@@ -138,8 +138,8 @@ struct bin {
         if (count >= capacity) {
             improved_particle_t *old_parts = particles;
             particles = new improved_particle_t[capacity * 2];
-            capacity *= 2;
             std::copy(old_parts, old_parts + capacity, particles);
+            capacity *= 2;
             if (own_mem) {
                 delete[] old_parts;
             } else {
