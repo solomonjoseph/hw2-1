@@ -116,6 +116,7 @@ struct /*alignas(64)*/ improved_particle_t {
     double last_t;
     unsigned int id;
     bool valid;
+    unsigned int num_updates;
 };
 
 struct bin {
@@ -227,7 +228,7 @@ struct bin_store {
     particle_t *base_array;
 
     inline unsigned int compute_bins_per_side(const unsigned int N) {
-        unsigned int num_bins = N / bin_capacity;
+        unsigned int num_bins = std::max(N / bin_capacity, 4u); // max is debug (and support for N<bin_capac)
         unsigned int bps = ceil(sqrt(num_bins));
         return round_up_pow2(bps);
     }
@@ -292,7 +293,7 @@ struct bin_store {
         for (unsigned int i = 0; i < N; i++) {
             parts[i].ax = parts[i].ay = 0.0;
             bin &curr_bin = get_bin_from_coord(parts[i].x, parts[i].y);
-            curr_bin.push_back((improved_particle_t) {parts[i], 0.0, i, true});
+            curr_bin.push_back((improved_particle_t) {parts[i], 0.0, i, true, 0});
         }
     }
 
@@ -407,6 +408,7 @@ struct bin_store {
             for (int j = 0; j < num_bins_per_side; ++j) {
                 bin &current = get_bin(i, j);
                 for (int k = 0; k < current.count; ++k) {
+                    current[k].num_updates += 1;
                     particle_t &part = current[k].part;
                     move(part, size);
                 }
@@ -415,11 +417,33 @@ struct bin_store {
 
         #pragma omp single
         {
-            int sum = 0;
+            // int sum = 0;
+            // for (auto bin : bins) {
+            //     sum += bin.count;
+            // }
+            // std::cout << sum << std::endl;
             for (auto bin : bins) {
-                sum += bin.count;
+                int i = 0;
+                for (; i<bin.count; i++) {
+                    if (bin[i].num_updates != 1) {
+                        std::cout << "bad num_updates!: " << bin.particles[i].num_updates << std::endl;
+                    }
+                    if (!bin[i].valid) {
+                        std::cout << "invalid particle in valid region!" << std::endl;
+                    }
+                    if (!(bin[i].part.ax == 0 && bin[i].part.ay == 0)) {
+                        std::cout << "nonzero acceleration!" << std::endl;
+                    }
+                    bin[i].num_updates = 0;
+                }
+                for (; i<bin.capacity; i++) {
+                    if (bin.particles[i].valid) {
+                        std::cout << "valid particle in invalid region!" << std::endl;
+                    }
+                }
             }
-            std::cout << sum << std::endl;
+
+            steps++;
         }
 
         // #pragma omp single
