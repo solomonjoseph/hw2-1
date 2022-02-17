@@ -164,6 +164,7 @@ struct bin {
 
     void execute_swap() {
         int i = 0;
+        std::sort(std::begin(remove_indices), std::end(remove_indices), std::greater<int>());
         int s = add_queue.size();
         int t = remove_indices.size();
         int lim = min(s, t);
@@ -410,6 +411,15 @@ struct bin_store {
                     move(part, size);
                 }
             }
+        }
+
+        #pragma omp single
+        {
+            int sum = 0;
+            for (auto bin : bins) {
+                sum += bin.count;
+            }
+            std::cout << sum << std::endl;
         }
 
         // #pragma omp single
