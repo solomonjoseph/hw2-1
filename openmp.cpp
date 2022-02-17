@@ -5,6 +5,7 @@
 #include <vector>
 #include <set>
 #include <unordered_set>
+#include <unordered_map>
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
@@ -124,7 +125,6 @@ struct bin {
     bool own_mem = false;
     omp_lock_t add_lock;
     std::vector<improved_particle_t> add_queue = std::vector<improved_particle_t>();
-
 
     bin() {}
 
@@ -283,7 +283,7 @@ struct bin_store {
                 bins[ind].capacity = bin_capacity;
                 bins[ind].count = 0;
                 bins[ind].own_mem = false;
-                omp_init_lock(&(bins[ind].add_lock));
+                omp_init_lock(&bins[ind].add_lock);
                 //std::cout << "Assigning " << i << ", " << j << " to " << ind << std::endl;
             }
         }
@@ -412,11 +412,12 @@ struct bin_store {
             }
         }
 
-        // #pragma omp for collapse(2)
-        #pragma omp single
-        {
+        // #pragma omp single
+        #pragma omp for collapse(2)
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
+                std::unordered_map<int, std::vector<improved_particle_t> > outgoing_particles;
+                std::unordered_set<int> outgoing_dests;
                 int new_i, new_j, current_index, new_index;
                 double x_t, y_t;
                 double left_edge, right_edge, top_edge, bottom_edge;
@@ -450,13 +451,32 @@ struct bin_store {
                     }
                     if (new_i != i || new_j != j) {
                         improved_particle_t tmp = current[k];
+                        int other_ind = calc_Z_order(i, j);
+                        outgoing_dests.insert(other_ind);
                         bin &other = get_bin(new_i, new_j);
                         current.schedule_remove(k);
-                        other.schedule_push_back(tmp);
+                        //other.schedule_push_back(tmp);
+                        outgoing_particles[other_ind].push_back(tmp);
+                    }
+                }
+
+                //Handle the build up outgoing particles
+                while (!outgoing_dests.empty()) {
+                    for (const int ind : outgoing_dests) {
+                        bin& dest = bins[ind];
+                        int result = omp_test_lock(&dest.add_lock);
+                        if (result != 0) {
+                            for (improved_particle_t part : outgoing_particles[ind]) {
+                                dest.schedule_push_back(part);
+                            }
+                            omp_unset_lock(&dest.add_lock);
+                            outgoing_dests.erase(ind);
+                            outgoing_particles.erase(ind);
+                            break;
+                        }
                     }
                 }
             }
-        }
         }
 
         #pragma omp for collapse(2)
