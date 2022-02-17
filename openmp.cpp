@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
-
+#include <omp.h>
 /*
 We will preduce B bins for N particles.
 The naive runtime is O(N^2). When split into bins,
@@ -120,7 +120,11 @@ struct /*alignas(64)*/ improved_particle_t {
 struct bin {
     improved_particle_t *particles = nullptr;
     unsigned int capacity = 0, count = 0;
+    std::vector<int> remove_indices = std::vector<int>();
     bool own_mem = false;
+    omp_lock_t add_lock;
+    std::vector<improved_particle_t> add_queue = std::vector<improved_particle_t>();
+
 
     bin() {}
 
@@ -139,6 +143,12 @@ struct bin {
         particles[count++] = new_part;
     }
 
+    void schedule_push_back(improved_particle_t new_part) {
+        // omp_set_lock(&add_lock);
+        add_queue.push_back(new_part);
+        // omp_unset_lock(&add_lock);
+    }
+
     //order doesn't matter, so keep things packed
     //IMPORTANT: do NOT remove _during_ simulation. remove particles BETWEEN simulation steps
     void remove(unsigned int index) {
@@ -146,6 +156,28 @@ struct bin {
             particles[index] = particles[--count];
             particles[count].valid = false;
         }
+    }
+
+    void schedule_remove(unsigned int index) {
+        remove_indices.push_back(index);
+    }
+
+    void execute_swap() {
+        int i = 0;
+        int s = add_queue.size();
+        int t = remove_indices.size();
+        int lim = min(s, t);
+        for (; i < lim; i++) {
+            particles[remove_indices[i]] = add_queue[i];
+        }
+        for (int j = i; j < s; j++) {
+            push_back(add_queue[j]);
+        }
+        for (int j = i; j < t; j++) {
+            remove(remove_indices[j]);
+        }
+        add_queue.clear();
+        remove_indices.clear();
     }
 
     improved_particle_t &operator[](int i) {
@@ -170,12 +202,6 @@ struct bin {
 1. initialize our data structure, pack in the improved_particle_t's from initialization data
 2. simulation is as before, but now we traverse bins in Z order so that neighbors are near
 3. unpack back into the original values based on the ID's
-*/
-
-/*
-Questions for Ben:
-    - why is class particle templated
-    - why struct over class
 */
 
 /*
@@ -257,6 +283,7 @@ struct bin_store {
                 bins[ind].capacity = bin_capacity;
                 bins[ind].count = 0;
                 bins[ind].own_mem = false;
+                omp_init_lock(&(bins[ind].add_lock));
                 //std::cout << "Assigning " << i << ", " << j << " to " << ind << std::endl;
             }
         }
@@ -385,14 +412,15 @@ struct bin_store {
             }
         }
 
+        // #pragma omp for collapse(2)
         #pragma omp single
         {
-        int new_i, new_j, current_index, new_index;
-        double x_t, y_t;
         for (int i = 0; i < num_bins_per_side; ++i) {
             for (int j = 0; j < num_bins_per_side; ++j) {
-                bin &current = get_bin(i, j);
+                int new_i, new_j, current_index, new_index;
+                double x_t, y_t;
                 double left_edge, right_edge, top_edge, bottom_edge;
+                bin &current = get_bin(i, j);
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
                 top_edge = j * bin_width;
@@ -420,17 +448,25 @@ struct bin_store {
                         y_t -= bin_width;
                         ++new_j;
                     }
-                    
                     if (new_i != i || new_j != j) {
                         improved_particle_t tmp = current[k];
-                        current.remove(k);
                         bin &other = get_bin(new_i, new_j);
-                        other.push_back(tmp);
+                        current.schedule_remove(k);
+                        other.schedule_push_back(tmp);
                     }
                 }
             }
         }
         }
+
+        #pragma omp for collapse(2)
+        for (int i = 0; i < num_bins_per_side; i++) {
+            for (int j = 0; j < num_bins_per_side; j++) {
+                bin &current = get_bin(i, j);
+                current.execute_swap();
+            }
+        }
+
         #pragma omp for
         for (int i = 0; i < num_bins; ++i) {
             bins[i].flush(base_array);
