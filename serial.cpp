@@ -110,7 +110,7 @@ inline int round_up_pow2(const unsigned int n) {
     return ++v;
 }
 
-struct /*alignas(64)*/ improved_particle_t {
+struct improved_particle_t {
     particle_t part;
     double last_t;
     unsigned int id;
