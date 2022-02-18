@@ -200,7 +200,7 @@ struct bin_store {
     particle_t *base_array;
 
     inline unsigned int compute_bins_per_side(const unsigned int N) {
-        unsigned int num_bins = std::max(N / bin_capacity, 4u);
+        unsigned int num_bins = std::max(N / bin_capacity, 1u);
         unsigned int bps = ceil(sqrt(num_bins));
         return round_up_pow2(bps);
     }
