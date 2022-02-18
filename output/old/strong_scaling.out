@@ -1,0 +1,34 @@
+NEW TEST
+cores: 1
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 15.03 seconds for 1500000 particles.
+cores: 2
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 15.0314 seconds for 1500000 particles.
+cores: 4
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 15.1999 seconds for 1500000 particles.
+cores: 8
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 15.101 seconds for 1500000 particles.
+cores: 16
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 14.0028 seconds for 1500000 particles.
+cores: 33
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 15.2762 seconds for 1500000 particles.
+cores: 68
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 14.9735 seconds for 1500000 particles.
+NEW TEST
+cores: 1
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 28.6686 seconds for 1500000 particles.
+cores: 2
+1500000, 65536, 32, 27.3861, 0.106977
+cores: 4
+1500000, 65536, 32, 27.3861, 0.106977
+cores: 8
+cores: 16
+cores: 33
+cores: 68

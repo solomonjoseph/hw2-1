@@ -6,6 +6,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <omp.h> // debug
 
 // =================
 // Helper Functions
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
 #pragma omp parallel default(shared)
 #endif
     {
+        std::cout << "num threads: " << omp_get_num_threads() << std::endl;
         for (int step = 0; step < nsteps; ++step) {
             simulate_one_step(parts, num_parts, size);
 

@@ -1,0 +1,22 @@
+NEW TEST
+cores: 1
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.2117 seconds for 1000000 particles.
+cores: 2
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.1998 seconds for 1000000 particles.
+cores: 4
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.6389 seconds for 1000000 particles.
+cores: 8
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.4994 seconds for 1000000 particles.
+cores: 16
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.8465 seconds for 1000000 particles.
+cores: 33
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.3083 seconds for 1000000 particles.
+cores: 68
+1000000, 65536, 32, 22.3607, 0.0873464
+Simulation Time = 10.6822 seconds for 1000000 particles.REEEEE

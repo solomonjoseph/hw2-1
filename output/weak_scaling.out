@@ -1,0 +1,21 @@
+1 cores
+22058, 1024, 32, 3.32099, 0.103781
+Simulation Time = 11.2042 seconds for 22058 particles.
+2 cores
+44117, 4096, 32, 4.69665, 0.0733851
+Simulation Time = 12.5527 seconds for 44117 particles.
+4 cores
+88235, 4096, 32, 6.6421, 0.103783
+Simulation Time = 11.7495 seconds for 88235 particles.
+8 cores
+176470, 16384, 32, 9.39335, 0.0733855
+Simulation Time = 13.0394 seconds for 176470 particles.
+16 cores
+352941, 16384, 32, 13.2842, 0.103783
+Simulation Time = 12.29 seconds for 352941 particles.
+33 cores
+727941, 65536, 32, 19.078, 0.0745235
+Simulation Time = 13.5039 seconds for 727941 particles.
+68 cores
+1500000, 65536, 32, 27.3861, 0.106977
+Simulation Time = 13.9139 seconds for 1500000 particles.

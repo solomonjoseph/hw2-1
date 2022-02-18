@@ -312,7 +312,7 @@ struct bin_store {
                 left_edge = i * bin_width;
                 right_edge = (i + 1) * bin_width;
                 top_edge = j * bin_width;
-                bottom_edge = (j + 1) * bin_width; 
+                bottom_edge = (j + 1) * bin_width;
                 if (i - 1 >= 0 && j + 1 < num_bins_per_side) {//bottom left
                     bin &bottom_left = get_bin(i - 1, j + 1);
                     for (int k = 0; k < bottom_left.count; ++k) {
